@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "name": "Test Project",
+    "description": "A test project",
+    "created": "2025-06-23T23:25:57.232726209Z",
+    "tech_stack": [
+      "rust",
+      "git"
+    ],
+    "tags": [
+      "systems",
+      "env-coach"
+    ],
+    "llm": null
+  },
+  "backlog": [
+    {
+      "id": "US-001",
+      "item_type": "UserStory",
+      "title": "Generated Title for Story near line 1",
+      "story": "Some text. As a user, I want a feature. More text.",
+      "acceptance_criteria": [
+        "Define specific acceptance criteria",
+        "Implement the feature",
+        "Write tests and documentation"
+      ],
+      "priority": "Medium",
+      "effort": 3,
+      "status": "Todo",
+      "created": "2025-06-23T23:25:57.232740359Z",
+      "sprint": null,
+      "dependencies": []
+    }
+  ],
+  "sprints": [],
+  "current_sprint": null
+}

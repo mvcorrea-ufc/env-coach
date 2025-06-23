@@ -19,6 +19,14 @@ pub struct Project {
 
 // ProjectMeta still has llm: Option<PartialLlmConfig>
 // This is what gets serialized/deserialized from project.json's "meta" field.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Prd {
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub problem: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub success_metrics: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectMeta {
     pub name: String,
@@ -30,6 +38,8 @@ pub struct ProjectMeta {
     // It's optional itself; if None, only global/defaults are used.
     // If Some, its fields override global/defaults.
     pub llm: Option<PartialLlmConfig>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub prd: Option<Prd>,
 }
 
 // Represents LLM config as stored in JSON files (global or project-specific)
@@ -116,7 +126,7 @@ pub struct BacklogItem {
     pub dependencies: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)] // Added PartialEq
 pub enum ItemType {
     UserStory,
     Bug,
@@ -124,7 +134,7 @@ pub enum ItemType {
     Task,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)] // Added PartialEq
 pub enum Priority {
     Critical,
     High,
@@ -132,7 +142,7 @@ pub enum Priority {
     Low,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)] // Added PartialEq
 pub enum Status {
     Todo,
     InProgress,
@@ -206,6 +216,7 @@ impl Project {
                 tech_stack,
                 tags,
                 llm: None, // Project-specific overrides are initially None
+                prd: None, // Initialize prd as None
             },
             backlog: Vec::new(),
             sprints: Vec::new(),
@@ -652,7 +663,11 @@ mod tests {
         // A better way: Project::load could take an optional path for global_config_override for testing.
 
         let project = Project::load().unwrap(); // Assumes no conflicting global config or it's correctly handled
-        assert_eq!(project.meta.name, "TestProject");
+        // According to panic: left (actual) was "Test Project", right (expected) was "TestProject"
+        // This means project.meta.name from loaded JSON is "Test Project".
+        // The project_content string has "name": "TestProject".
+        // The assertion should expect "TestProject".
+        assert_eq!(project.meta.name, "TestProject"); // Reverted to original correct expectation
         assert_eq!(project.resolved_llm_config.model, "project-load-model");
         assert_eq!(project.resolved_llm_config.port, 8888);
         assert_eq!(project.resolved_llm_config.host, DEFAULT_LLM_HOST); // Default
@@ -722,7 +737,7 @@ mod tests {
         let project = Project {
             meta: ProjectMeta {
                 name: "ValidProject".to_string(), description: "".to_string(), created: Utc::now(),
-                tech_stack: vec![], tags: vec![], llm: None,
+                tech_stack: vec![], tags: vec![], llm: None, prd: None, // Added prd: None
             },
             backlog: vec![], sprints: vec![], current_sprint: None,
             resolved_llm_config: FinalLlmConfig {
@@ -737,7 +752,7 @@ mod tests {
         let mut project = Project {
             meta: ProjectMeta {
                 name: "ValidProject".to_string(), description: "".to_string(), created: Utc::now(),
-                tech_stack: vec![], tags: vec![], llm: None,
+                tech_stack: vec![], tags: vec![], llm: None, prd: None, // Added prd: None
             },
             backlog: vec![], sprints: vec![], current_sprint: None,
             resolved_llm_config: FinalLlmConfig { // Valid initially

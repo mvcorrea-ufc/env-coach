@@ -38,57 +38,25 @@ async fn send_llm_request(requirement: &str, llm_config: &FinalLlmConfig, projec
     
     // Get primary programming language for context
     let primary_language = get_primary_language(&project.meta.tech_stack);
-    
-    let prompt = format!(
-        r#"You are a software engineering expert analyzing requirements for a {primary_language} project.
 
-PROJECT CONTEXT:
-- Project: {project_name}
-- Description: {project_description}
-- Tech Stack: {tech_stack}
-- Primary Language: {primary_language}
-- Tags: {tags}
+    // Load prompt from file
+    let prompt_template_path = std::path::Path::new(".env-coach/prompts/requirements_analyst.md");
+    let mut prompt_template = std::fs::read_to_string(prompt_template_path)
+        .context(format!("Failed to read prompt template from {:?}", prompt_template_path))?;
 
-REQUIREMENT TO ANALYZE: "{requirement}"
+    // Perform replacements
+    prompt_template = prompt_template.replace("{{project_name}}", &project.meta.name);
+    prompt_template = prompt_template.replace("{{project_description}}", &project.meta.description);
+    prompt_template = prompt_template.replace("{{tech_stack}}", &project.meta.tech_stack.join(", "));
+    prompt_template = prompt_template.replace("{{primary_language}}", &primary_language);
+    prompt_template = prompt_template.replace("{{tags}}", &project.get_tags_display());
+    prompt_template = prompt_template.replace("{{requirement}}", requirement);
 
-Please respond with a JSON object containing user stories specifically tailored for this {primary_language} project:
-
-{{
-  "user_stories": [
-    {{
-      "title": "Brief descriptive title",
-      "story": "As a user, I want ... so that ...",
-      "priority": "high|medium|low",
-      "effort": 3,
-      "acceptance_criteria": [
-        "Specific testable criterion considering {primary_language} implementation",
-        "Technical criterion relevant to {tech_stack}",
-        "User-facing criterion for the feature"
-      ]
-    }}
-  ]
-}}
-
-Focus on:
-1. Breaking down the requirement into {primary_language}-appropriate user stories
-2. Writing acceptance criteria that consider {primary_language} implementation details
-3. Estimating effort appropriately for {primary_language} development (1-8 points)
-4. Prioritizing based on user value and technical dependencies in {primary_language}
-5. Including technical considerations specific to the tech stack: {tech_stack}
-
-Generate 2-5 user stories that comprehensively cover the requirement for a {primary_language} project.
-Return only valid JSON."#,
-        requirement = requirement,
-        primary_language = primary_language,
-        project_name = project.meta.name,
-        project_description = project.meta.description,
-        tech_stack = project.meta.tech_stack.join(", "),
-        tags = project.get_tags_display()
-    );
+    let final_prompt = prompt_template;
 
     let request_body = serde_json::json!({
         "model": llm_config.model,
-        "prompt": prompt,
+        "prompt": final_prompt, // Use the processed prompt string
         "stream": false,
         "options": {
             "temperature": 0.7,

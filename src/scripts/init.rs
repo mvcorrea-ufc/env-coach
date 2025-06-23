@@ -2,10 +2,15 @@
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
-use crate::config::{Project, GlobalConfig}; // Added GlobalConfig
+use crate::config::{Project, GlobalConfig, Prd}; // Added Prd
 use crate::templates::Templates;
 
-pub fn run(name: Option<String>, description: Option<String>) -> Result<()> {
+pub fn run(
+    name: Option<String>,
+    description: Option<String>,
+    problem: Option<String>,
+    metrics: Vec<String>
+) -> Result<()> {
     // Load global config first to pass to Project::new or Project::create_in_current_dir
     let global_config = GlobalConfig::load().context("Failed to load global env-coach configuration")?;
     let global_llm_cfg_ref = global_config.llm.as_ref();
@@ -48,7 +53,17 @@ pub fn run(name: Option<String>, description: Option<String>) -> Result<()> {
 
     // Create the project configuration
     // Pass global_llm_cfg_ref to Project::new
-    let project = Project::new(project_name.clone(), project_description, global_llm_cfg_ref);
+    let mut project = Project::new(project_name.clone(), project_description, global_llm_cfg_ref);
+
+    // Populate PRD if provided
+    if problem.is_some() || !metrics.is_empty() {
+        let prd_content = Prd {
+            problem: problem.unwrap_or_default(),
+            success_metrics: metrics,
+        };
+        project.meta.prd = Some(prd_content);
+        println!("📄 PRD information captured.");
+    }
 
     // Validate the project before saving
     project.validate()
@@ -104,7 +119,21 @@ pub fn run(name: Option<String>, description: Option<String>) -> Result<()> {
             .context("Failed to create .env-coach/cache directory")?;
         fs::create_dir_all(format!("{}/logs", env_coach_dir))
             .context("Failed to create .env-coach/logs directory")?;
-        println!("✅ Created .env-coach/ directory structure");
+
+        // Create prompts directory and default prompts
+        let prompts_dir = Path::new(env_coach_dir).join("prompts");
+        fs::create_dir_all(&prompts_dir)
+            .context("Failed to create .env-coach/prompts directory")?;
+
+        Templates::create_default_prompt_if_missing(
+            &prompts_dir,
+            "requirements_analyst.md",
+            Templates::default_requirements_analyst_prompt_content()
+        ).context("Failed to create default requirements_analyst.md prompt")?;
+
+        // TODO: Add other default prompts here in the future e.g. task_assistant.md, code_reviewer.md
+
+        println!("✅ Created .env-coach/ directory structure and default prompts.");
     }
 
     println!();
@@ -121,4 +150,116 @@ pub fn run(name: Option<String>, description: Option<String>) -> Result<()> {
     println!("   cat README.md                       # Read project documentation");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use std::fs;
+    use crate::config::Project; // For loading and checking project.json
+
+    #[test]
+    fn test_init_run_with_prd_info() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let project_name = Some("TestPRDProject".to_string());
+        let description = Some("A project to test PRD init".to_string());
+        let problem = Some("The main problem is testing this feature.".to_string());
+        let metrics = vec!["Metric1".to_string(), "Metric2".to_string()];
+
+        run(project_name.clone(), description.clone(), problem.clone(), metrics.clone()).unwrap();
+
+        // Load the created project.json and verify its contents
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path)
+            .expect("Test: Failed to read project.json after init run");
+        let loaded_project: Project = serde_json::from_str(&project_content_str)
+            .expect("Test: Failed to parse project.json content");
+
+        assert_eq!(loaded_project.meta.name, project_name.unwrap());
+        assert!(loaded_project.meta.prd.is_some());
+        let prd = loaded_project.meta.prd.unwrap();
+        assert_eq!(prd.problem, problem.unwrap());
+        assert_eq!(prd.success_metrics, metrics);
+
+        // Cleanup: remove project.json and restore original directory
+        fs::remove_file("project.json").unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_init_run_without_prd_info() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let project_name = Some("TestNoPRDProject".to_string());
+        let description = Some("A project to test no PRD init".to_string());
+
+        // No PRD info provided
+        run(project_name.clone(), description.clone(), None, vec![]).unwrap();
+
+        // ---- Debug Start ----
+        let project_json_content = fs::read_to_string("project.json")
+            .expect("Failed to read project.json for debugging");
+        println!("DEBUG: Content of project.json:\nSTART_OF_JSON\n{}\nEND_OF_JSON", project_json_content);
+        // ---- Debug End ----
+
+        let loaded_project = Project::load().expect("Failed to load project.json in test");
+
+        assert_eq!(loaded_project.meta.name, project_name.unwrap());
+        assert!(loaded_project.meta.prd.is_none(), "PRD should be None when not provided");
+
+        fs::remove_file("project.json").unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_init_run_with_partial_prd_info_problem_only() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let problem = Some("Only a problem statement.".to_string());
+        run(Some("ProblemOnly".to_string()), None, problem.clone(), vec![]).unwrap();
+
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path)
+            .expect("Test: Failed to read project.json after init run");
+        let loaded_project: Project = serde_json::from_str(&project_content_str)
+            .expect("Test: Failed to parse project.json content");
+
+        assert!(loaded_project.meta.prd.is_some());
+        assert_eq!(loaded_project.meta.prd.as_ref().unwrap().problem, problem.unwrap());
+        assert!(loaded_project.meta.prd.as_ref().unwrap().success_metrics.is_empty());
+
+        fs::remove_file("project.json").unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_init_run_with_partial_prd_info_metrics_only() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let metrics = vec!["Metric A".to_string()];
+        run(Some("MetricsOnly".to_string()), None, None, metrics.clone()).unwrap();
+
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path)
+            .expect("Test: Failed to read project.json after init run");
+        let loaded_project: Project = serde_json::from_str(&project_content_str)
+            .expect("Test: Failed to parse project.json content");
+
+        assert!(loaded_project.meta.prd.is_some());
+        assert!(loaded_project.meta.prd.as_ref().unwrap().problem.is_empty());
+        assert_eq!(loaded_project.meta.prd.as_ref().unwrap().success_metrics, metrics);
+
+        fs::remove_file("project.json").unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
 }
