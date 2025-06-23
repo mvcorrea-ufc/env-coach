@@ -2,10 +2,14 @@
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
-use crate::config::Project;
+use crate::config::{Project, GlobalConfig}; // Added GlobalConfig
 use crate::templates::Templates;
 
 pub fn run(name: Option<String>, description: Option<String>) -> Result<()> {
+    // Load global config first to pass to Project::new or Project::create_in_current_dir
+    let global_config = GlobalConfig::load().context("Failed to load global env-coach configuration")?;
+    let global_llm_cfg_ref = global_config.llm.as_ref();
+
     // Check if project is already initialized
     if Project::is_initialized() {
         println!("⚠️  Project already initialized (project.json exists)");
@@ -43,7 +47,8 @@ pub fn run(name: Option<String>, description: Option<String>) -> Result<()> {
     println!("📝 Project description: {}", project_description);
 
     // Create the project configuration
-    let project = Project::new(project_name.clone(), project_description);
+    // Pass global_llm_cfg_ref to Project::new
+    let project = Project::new(project_name.clone(), project_description, global_llm_cfg_ref);
 
     // Validate the project before saving
     project.validate()

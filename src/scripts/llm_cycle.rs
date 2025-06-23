@@ -8,17 +8,29 @@ pub async fn run(prompt: String) -> anyhow::Result<()> {  // Make async
     // Try to load project configuration
     let project = match crate::config::Project::load() {
         Ok(project) => {
-            println!("📋 Using project LLM configuration");
+            println!("📋 Using project LLM configuration from project.json");
             project
         }
         Err(_) => {
-            println!("⚠️  No env-coach project found, using default LLM config");
-            crate::config::Project::create_in_current_dir()?
+            println!("⚠️  No env-coach project found (project.json missing or invalid).");
+            println!("Attempting to use global/default LLM configuration for this cycle.");
+            // Load global config to pass to create_in_current_dir for default project setup
+            let global_config = crate::config::GlobalConfig::load()
+                .map_err(|e| {
+                    // Log this error but proceed, as create_in_current_dir can handle None for global_llm_config
+                    error!("Failed to load global config for llm_cycle fallback: {}", e);
+                    e
+                })
+                .unwrap_or_default(); // Proceed with default if global load fails catastrophically
+
+            crate::config::Project::create_in_current_dir(global_config.llm.as_ref())?
         }
     };
     
+    // Project::load() and Project::new (via create_in_current_dir) now populate resolved_llm_config
+    // So we should use project.llm() which returns &FinalLlmConfig
     project.validate()?; // Validate configuration before use
-    let cfg = &project.meta.llm;
+    let cfg = project.llm(); // Use the resolved LLM config
 
     // Check if prompt is a file path
     let prompt_text = if prompt.contains('.') && fs::metadata(&prompt).is_ok() {

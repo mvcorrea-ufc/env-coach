@@ -1,14 +1,14 @@
 // src/ollama.rs
 //! Networking utilities to interact with the Ollama REST API
 
-use crate::config::LlmConfig;
-use reqwest::Client;  // Remove blocking::
+use crate::config::FinalLlmConfig; // Changed from LlmConfig
+use reqwest::Client;
 use std::time::Duration;
 use log::{info, debug, error};
 
 /// Ping Ollama and list available models.
 /// Returns Ok(()) on success, Err on any network/HTTP error.
-pub async fn check_status(cfg: &LlmConfig) -> anyhow::Result<()> {  // Make async
+pub async fn check_status(cfg: &FinalLlmConfig) -> anyhow::Result<()> {  // Changed cfg type
     info!("Attempting to check Ollama status with config: {:?}", cfg);
     let client = Client::builder()
         .timeout(Duration::from_millis(cfg.timeout_ms))
@@ -53,7 +53,7 @@ pub struct ChatResponse {
 }
 
 #[allow(dead_code)]
-pub async fn send_prompt(cfg: &LlmConfig, prompt: &str) -> anyhow::Result<()> {  // Make async
+pub async fn send_prompt(cfg: &FinalLlmConfig, prompt: &str) -> anyhow::Result<()> { // Ensure this was FinalLlmConfig
     let client = Client::builder()  // Remove blocking::
         .timeout(Duration::from_millis(cfg.timeout_ms))
         .build()?;

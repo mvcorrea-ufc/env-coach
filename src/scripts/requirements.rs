@@ -2,7 +2,7 @@
 use anyhow::{Context, Result};
 use reqwest;
 use serde_json::Value;
-use crate::config::{LlmConfig, Project};
+use crate::config::{FinalLlmConfig, Project}; // Changed LlmConfig to FinalLlmConfig
 use crate::auto_update::{AutoUpdater, UpdateContext}; // NEW: Import auto-update
 
 pub async fn process_requirement(requirement: String) -> Result<()> {
@@ -33,7 +33,7 @@ pub async fn process_requirement(requirement: String) -> Result<()> {
     Ok(())
 }
 
-async fn send_llm_request(requirement: &str, llm_config: &LlmConfig, project: &Project) -> Result<String> {
+async fn send_llm_request(requirement: &str, llm_config: &FinalLlmConfig, project: &Project) -> Result<String> { // Changed LlmConfig to FinalLlmConfig
     let client = reqwest::Client::new();
     
     // Get primary programming language for context

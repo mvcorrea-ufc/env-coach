@@ -37,19 +37,53 @@ env-coach init
 ```
 
 ### 2. Configure LLM Connection
-Edit `project.json` to point to your Ollama instance:
+Edit LLM connection settings. `env-coach` uses a hierarchical configuration:
+1.  **Project-specific (`project.json`):** Settings here override global and default values.
+2.  **Global (`~/.config/env-coach/config.json` on Linux/macOS, or equivalent user config directory on Windows):** Sets default LLM parameters for all your projects.
+3.  **Built-in defaults:** If a setting is not found in project or global configs, a sensible default is used (e.g., `localhost:11434` for Ollama).
+
+**Global Configuration (Optional):**
+
+Create `~/.config/env-coach/config.json` (or your OS's equivalent config path) with your preferred default LLM settings. Example:
 ```json
 {
-  "meta": {
-    "llm": {
-      "host": "localhost",
-      "port": 11434,
-      "model": "deepseek-coder:6.7b",
-      "timeout_ms": 30000
-    }
+  "llm": {
+    "host": "192.168.1.100",
+    "port": 11434,
+    "model": "mistral:latest",
+    "timeout_ms": 60000
   }
 }
 ```
+All fields within `"llm"` are optional. If this file or any field is omitted, built-in defaults will be used.
+
+**Project-Specific Configuration (`project.json`):**
+
+When you run `env-coach init`, a `project.json` is created. You can add an `"llm"` object within the `"meta"` section to override global settings or defaults for this specific project.
+Example `project.json` snippet:
+```json
+{
+  "meta": {
+    "name": "my-rust-project",
+    "description": "...",
+    "created": "...",
+    "tech_stack": ["rust"],
+    "tags": [],
+    // Project-specific LLM overrides
+    "llm": {
+      "model": "deepseek-coder:33b", // Override global/default model for this project
+      "timeout_ms": 120000          // Custom timeout for this project
+      // Host and port might be inherited from global or default if not specified here
+    }
+  },
+  "backlog": [],
+  "sprints": [],
+  "current_sprint": null
+}
+```
+If the `"llm"` object or any of its fields are absent in `project.json`, `env-coach` will look at the global configuration, and then fall back to built-in defaults.
+
+Use `env-coach status` to see the resolved LLM configuration and the source of each setting (Default, Global, or Project).
 
 ### 3. Add Requirements
 ```bash

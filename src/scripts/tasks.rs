@@ -2,7 +2,7 @@
 use anyhow::{Context, Result};
 use reqwest;
 use serde_json::Value;
-use crate::config::{LlmConfig, Project, Status};
+use crate::config::{FinalLlmConfig, Project, Status}; // Changed LlmConfig to FinalLlmConfig
 use crate::auto_update::{AutoUpdater, UpdateContext}; // NEW: Import auto-update
 
 pub fn start_task(id: String) -> Result<()> {
@@ -150,7 +150,7 @@ pub fn complete_task(id: String) -> Result<()> {
 
 async fn send_llm_assistance_request(
     task: &crate::config::BacklogItem, 
-    llm_config: &LlmConfig, 
+    llm_config: &FinalLlmConfig, // Changed LlmConfig to FinalLlmConfig
     project: &Project
 ) -> Result<String> {
     let client = reqwest::Client::new();

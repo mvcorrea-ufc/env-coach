@@ -23,21 +23,102 @@ pub async fn run() -> Result<()> {  // Make async
     println!();
 
     // Test LLM connectivity
-    println!("🤖 LLM Configuration:");
-    println!("   Model: {}", project.llm().model);
-    println!("   URL: {}", project.llm().base_url());
-    println!("   Tags: {}", project.get_tags_display());
+    // Load global config to show sources
+    let global_config = crate::config::GlobalConfig::load().unwrap_or_default(); // Handle error better if needed
+
+    println!("🤖 LLM Configuration (resolved):");
+    let resolved_llm = project.llm();
+    let project_llm_override = project.meta.llm.as_ref();
+    let global_llm_settings = global_config.llm.as_ref();
+
+    // Helper to determine source
+    fn get_source_info(
+        p_val: Option<&str>, g_val: Option<&str>, def_val: &str, actual_val: &str,
+        p_source_name: &str, g_source_name: &str, def_source_name: &str
+    ) -> String {
+        if p_val.map_or(false, |v| v == actual_val) {
+            p_source_name.to_string()
+        } else if g_val.map_or(false, |v| v == actual_val) {
+            g_source_name.to_string()
+        } else if actual_val == def_val {
+            def_source_name.to_string()
+        } else {
+            "Unknown".to_string() // Should not happen if logic is correct
+        }
+    }
     
-    match ollama::check_status(project.llm()).await {  // Add .await
+    // Using a more specific default check for numeric types like port/timeout
+    fn get_source_info_numeric<T: PartialEq + std::fmt::Display>(
+        p_opt_val: Option<T>, g_opt_val: Option<T>, def_val: T, actual_val: &T,
+        p_source_name: &str, g_source_name: &str, def_source_name: &str
+    ) -> String {
+        if p_opt_val.as_ref().map_or(false, |v| v == actual_val) {
+            p_source_name.to_string()
+        } else if g_opt_val.as_ref().map_or(false, |v| v == actual_val) {
+            g_source_name.to_string()
+        } else if *actual_val == def_val {
+            def_source_name.to_string()
+        } else {
+            "Unknown".to_string() // Should ideally not be reached
+        }
+    }
+
+
+    let model_source = get_source_info(
+        project_llm_override.and_then(|p| p.model.as_deref()),
+        global_llm_settings.and_then(|g| g.model.as_deref()),
+        crate::config::DEFAULT_LLM_MODEL,
+        &resolved_llm.model,
+        "Project (project.json)", "Global (~/.config/env-coach/config.json)", "Default"
+    );
+    println!("   Model:      {} (Source: {})", resolved_llm.model, model_source);
+
+    let host_source = get_source_info(
+        project_llm_override.and_then(|p| p.host.as_deref()),
+        global_llm_settings.and_then(|g| g.host.as_deref()),
+        crate::config::DEFAULT_LLM_HOST,
+        &resolved_llm.host,
+        "Project (project.json)", "Global (~/.config/env-coach/config.json)", "Default"
+    );
+    println!("   Host:       {} (Source: {})", resolved_llm.host, host_source);
+
+    let port_source = get_source_info_numeric(
+        project_llm_override.and_then(|p| p.port),
+        global_llm_settings.and_then(|g| g.port),
+        crate::config::DEFAULT_LLM_PORT,
+        &resolved_llm.port,
+        "Project (project.json)", "Global (~/.config/env-coach/config.json)", "Default"
+    );
+    println!("   Port:       {} (Source: {})", resolved_llm.port, port_source);
+
+    let timeout_source = get_source_info_numeric(
+        project_llm_override.and_then(|p| p.timeout_ms),
+        global_llm_settings.and_then(|g| g.timeout_ms),
+        crate::config::DEFAULT_LLM_TIMEOUT_MS,
+        &resolved_llm.timeout_ms,
+        "Project (project.json)", "Global (~/.config/env-coach/config.json)", "Default"
+    );
+    println!("   Timeout:    {}ms (Source: {})", resolved_llm.timeout_ms, timeout_source);
+    println!("   Base URL:   {}", resolved_llm.base_url());
+    println!("   Tags:       {}", project.get_tags_display()); // Tags are not part of LLM config sources
+
+    match ollama::check_status(resolved_llm).await { // Pass resolved_llm explicitly
         Ok(()) => {
-            // Status message is printed by check_status function
+            // Success message is printed by ollama::check_status itself
         }
         Err(e) => {
-            println!("   Status: ❌ Not reachable");
-            println!("   Error: {}", e);
-            println!("💡 Make sure Ollama is running:");
-            println!("   ollama serve");
-            println!("   ollama pull {}", project.llm().model);
+            println!("   Status: ❌ Connection failed");
+            println!("   Error details: {}", e);
+            println!();
+            println!("💡 Troubleshooting tips:");
+            println!("   1. Ensure Ollama is running. On your Ollama server, try: ollama ps");
+            println!("   2. Verify the Ollama URL used by env-coach: {}", project.llm().base_url());
+            println!("      Consider these configuration sources (project overrides global):");
+            println!("      - Project specific: ./project.json (in the 'llm' section)");
+            println!("      - Global default: ~/.config/env-coach/config.json (in the 'llm' section)");
+            println!("   3. If the model '{}' is specified, ensure it's available on the Ollama server:", project.llm().model);
+            println!("      On your Ollama server, try: ollama pull {}", project.llm().model);
+            println!("   4. Check network connectivity from this machine to the Ollama host: {}", project.llm().host);
         }
     }
     println!();
