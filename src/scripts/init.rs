@@ -9,7 +9,8 @@ pub fn run(
     name: Option<String>,
     description: Option<String>,
     problem: Option<String>,
-    metrics: Vec<String>
+    metrics: Vec<String>,
+    description_file: Option<String>, // Added description_file
 ) -> Result<()> {
     // Load global config first to pass to Project::new or Project::create_in_current_dir
     let global_config = GlobalConfig::load().context("Failed to load global env-coach configuration")?;
@@ -44,16 +45,32 @@ pub fn run(
         }
     };
 
-    // Get project description
-    let project_description = description.unwrap_or_else(|| {
+    // Determine project description
+    let mut final_project_description = description.unwrap_or_else(|| {
         format!("AI-assisted development project for {}", project_name)
     });
 
-    println!("📝 Project description: {}", project_description);
+    if let Some(desc_file_path) = description_file {
+        match fs::read_to_string(&desc_file_path) {
+            Ok(content) => {
+                if !content.trim().is_empty() {
+                    final_project_description = content.trim().to_string();
+                    println!("ℹ️ Using project description from file: {}", desc_file_path);
+                } else {
+                    println!("⚠️ Description file '{}' is empty. Using provided or default description.", desc_file_path);
+                }
+            }
+            Err(e) => {
+                println!("⚠️ Failed to read description file '{}': {}. Using provided or default description.", desc_file_path, e);
+            }
+        }
+    }
+
+    println!("📝 Project description: {}", final_project_description);
 
     // Create the project configuration
     // Pass global_llm_cfg_ref to Project::new
-    let mut project = Project::new(project_name.clone(), project_description, global_llm_cfg_ref);
+    let mut project = Project::new(project_name.clone(), final_project_description, global_llm_cfg_ref); // Use final_project_description
 
     // Populate PRD if provided
     if problem.is_some() || !metrics.is_empty() {
@@ -176,7 +193,7 @@ mod tests {
         let problem = Some("The main problem is testing this feature.".to_string());
         let metrics = vec!["Metric1".to_string(), "Metric2".to_string()];
 
-        run(project_name.clone(), description.clone(), problem.clone(), metrics.clone()).unwrap();
+        run(project_name.clone(), description.clone(), problem.clone(), metrics.clone(), None).unwrap(); // Added None for description_file
 
         // Load the created project.json and verify its contents
         let project_json_path = temp_dir.path().join("project.json");
@@ -206,7 +223,7 @@ mod tests {
         let description = Some("A project to test no PRD init".to_string());
 
         // No PRD info provided
-        run(project_name.clone(), description.clone(), None, vec![]).unwrap();
+        run(project_name.clone(), description.clone(), None, vec![], None).unwrap(); // Added None for description_file
 
         // ---- Debug Start ----
         let project_json_content = fs::read_to_string("project.json")
@@ -230,7 +247,7 @@ mod tests {
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
         let problem = Some("Only a problem statement.".to_string());
-        run(Some("ProblemOnly".to_string()), None, problem.clone(), vec![]).unwrap();
+        run(Some("ProblemOnly".to_string()), None, problem.clone(), vec![], None).unwrap(); // Added None for description_file
 
         let project_json_path = temp_dir.path().join("project.json");
         let project_content_str = fs::read_to_string(&project_json_path)
@@ -253,7 +270,7 @@ mod tests {
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
         let metrics = vec!["Metric A".to_string()];
-        run(Some("MetricsOnly".to_string()), None, None, metrics.clone()).unwrap();
+        run(Some("MetricsOnly".to_string()), None, None, metrics.clone(), None).unwrap(); // Added None for description_file
 
         let project_json_path = temp_dir.path().join("project.json");
         let project_content_str = fs::read_to_string(&project_json_path)
@@ -266,6 +283,122 @@ mod tests {
         assert_eq!(loaded_project.meta.prd.as_ref().unwrap().success_metrics, metrics);
 
         fs::remove_file("project.json").unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_init_run_with_description_file() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let desc_content = "Description from a file.".to_string();
+        let desc_file_path = temp_dir.path().join("desc.txt");
+        fs::write(&desc_file_path, &desc_content).unwrap();
+
+        run(
+            Some("DescFileProject".to_string()),
+            None, // No direct --description
+            None,
+            vec![],
+            Some(desc_file_path.to_str().unwrap().to_string())
+        ).unwrap();
+
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path).unwrap();
+        let loaded_project: Project = serde_json::from_str(&project_content_str).unwrap();
+
+        assert_eq!(loaded_project.meta.description, desc_content);
+
+        fs::remove_file(project_json_path).unwrap();
+        fs::remove_file(desc_file_path).unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_init_run_with_description_file_takes_precedence() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let direct_desc = "Direct description from flag.".to_string();
+        let file_desc = "Description from file (should win).".to_string();
+        let desc_file_path = temp_dir.path().join("desc.txt");
+        fs::write(&desc_file_path, &file_desc).unwrap();
+
+        run(
+            Some("DescFilePrecedence".to_string()),
+            Some(direct_desc),
+            None,
+            vec![],
+            Some(desc_file_path.to_str().unwrap().to_string())
+        ).unwrap();
+
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path).unwrap();
+        let loaded_project: Project = serde_json::from_str(&project_content_str).unwrap();
+
+        assert_eq!(loaded_project.meta.description, file_desc);
+
+        fs::remove_file(project_json_path).unwrap();
+        fs::remove_file(desc_file_path).unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_init_run_with_missing_description_file_falls_back() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let direct_desc = "Fallback description.".to_string();
+        let missing_file_path = "non_existent_desc.txt"; // Does not exist
+
+        // Expect a warning to be printed, but the run should succeed using direct_desc
+        run(
+            Some("MissingDescFile".to_string()),
+            Some(direct_desc.clone()),
+            None,
+            vec![],
+            Some(missing_file_path.to_string())
+        ).unwrap();
+
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path).unwrap();
+        let loaded_project: Project = serde_json::from_str(&project_content_str).unwrap();
+
+        assert_eq!(loaded_project.meta.description, direct_desc);
+
+        fs::remove_file(project_json_path).unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
+
+    #[test]
+    fn test_init_run_with_empty_description_file_falls_back() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let direct_desc = "Fallback for empty file.".to_string();
+        let desc_file_path = temp_dir.path().join("empty_desc.txt");
+        fs::write(&desc_file_path, "").unwrap(); // Empty file
+
+        run(
+            Some("EmptyDescFile".to_string()),
+            Some(direct_desc.clone()),
+            None,
+            vec![],
+            Some(desc_file_path.to_str().unwrap().to_string())
+        ).unwrap();
+
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path).unwrap();
+        let loaded_project: Project = serde_json::from_str(&project_content_str).unwrap();
+
+        assert_eq!(loaded_project.meta.description, direct_desc);
+
+        fs::remove_file(project_json_path).unwrap();
+        fs::remove_file(desc_file_path).unwrap();
         std::env::set_current_dir(original_dir).unwrap();
     }
 }

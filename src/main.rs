@@ -31,6 +31,9 @@ enum Commands {
         /// Success metric for the project (PRD) - can be specified multiple times
         #[arg(long = "metric")]
         metrics: Vec<String>,
+        /// Path to a file containing the project description
+        #[arg(long)]
+        description_file: Option<String>,
     },
     /// Add a new requirement
     AddRequirement {
@@ -96,8 +99,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { name, description, problem, metrics } => { // Added problem, metrics
-            scripts::init::run(name, description, problem, metrics)?; // Pass new args
+        Commands::Init { name, description, problem, metrics, description_file } => { // Added description_file
+            scripts::init::run(name, description, problem, metrics, description_file)?; // Pass new args
         }
         Commands::AddRequirement { requirement } => {
             scripts::requirements::process_requirement(requirement).await?;

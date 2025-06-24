@@ -38,6 +38,9 @@ env-coach init
 
 # Initialization with PRD information
 env-coach init --problem "Users need a way to track their book reading progress." --metric "Increase user engagement by 15%" --metric "Users log reading activity at least 3 times a week"
+
+# Initialization with description from a file
+env-coach init --description-file ./path/to/project_description.md
 ```
 
 ### 2. Configure LLM Connection
@@ -143,7 +146,8 @@ env-coach show-sprint
 ## Commands
 
 ### Project Management
-- `init` - Initialize LLM workflow in current project
+- `init [OPTIONS]` - Initialize LLM workflow in current project.
+  - Options include: `--name <name>`, `--description <text>`, `--description-file <path>`, `--problem <text>`, `--metric <text>`
 - `status` - Check LLM connectivity
 - `add-requirement <text>` - Process natural language requirements
 - `list-backlog` - Show current backlog
