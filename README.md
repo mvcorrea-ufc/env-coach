@@ -161,7 +161,7 @@ env-coach show-sprint
 
 ### Development Workflow
 - `start-task <id>` - Begin working on a task
-- `assist-task <id>` - Get LLM assistance with implementation
+- `assist-task <id> [--prompt <user_query>]` - Get LLM assistance with implementation. The LLM will provide structured suggestions (e.g., for code changes, `Cargo.toml` dependencies, or general advice) based on the task details and your optional query. `env-coach` can automatically add suggested dependencies to `Cargo.toml` after your confirmation.
 - `complete-task <id>` - Mark task complete and update metrics
 
 ### LLM Interaction
@@ -375,8 +375,8 @@ Tested with:
 Edit files in `.env-coach/prompts/` to customize LLM behavior. These files are created with defaults when you run `env-coach init`:
 - `requirements_analyst.md` - Used by `add-requirement` to process natural language requirements into user stories.
 - `sprint_planner.md` - Used by `plan-sprint` to analyze the backlog and suggest stories for a sprint goal.
+- `task_assistant.md` - Used by `assist-task`. Instructs the LLM to provide structured suggestions (JSON format) for code changes, dependency additions (`Cargo.toml`), and general advice related to a task.
 - `code_reviewer.md` - (Planned) For code review assistance.
-- `task_assistant.md` - (Planned) Used by `assist-task` for development assistance.
 
 ## Development Phases
 

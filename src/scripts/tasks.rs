@@ -1,8 +1,8 @@
 // src/scripts/tasks.rs
 use anyhow::{Context, Result};
-use reqwest;
-use serde_json::Value;
-use crate::config::{FinalLlmConfig, Project, Status}; // Changed LlmConfig to FinalLlmConfig
+// use reqwest; // Unused
+// use serde_json::Value; // Unused
+use crate::config::{Project, Status}; // Removed FinalLlmConfig as it's not directly used here
 use crate::auto_update::{AutoUpdater, UpdateContext}; // NEW: Import auto-update
 
 pub fn start_task(id: String) -> Result<()> {
@@ -48,44 +48,88 @@ pub fn start_task(id: String) -> Result<()> {
     Ok(())
 }
 
-pub async fn assist_task(id: String) -> Result<()> {
-    let project = Project::load()
-        .context("Failed to load project. Run 'env-coach init <n>' first")?;
+pub async fn assist_task(task_id: String, user_prompt_override: Option<String>) -> Result<()> {
+    use crate::templates::Templates; // For default prompt
+    use crate::ollama; // For send_generation_prompt
+    use crate::config::BacklogItem; // To type hint `task`
 
-    println!("🤖 Providing LLM assistance for task: {}", id);
-    println!("🔍 Analyzing task and generating assistance...");
+    let project = Project::load().context("Failed to load project. Run 'env-coach init' first.")?;
 
-    // Find the task
-    let task = project.backlog
-        .iter()
-        .find(|item| item.id == id)
-        .ok_or_else(|| anyhow::anyhow!("Task '{}' not found", id))?;
+    println!("🤖 Providing LLM assistance for task: {}", task_id);
+
+    let task: &BacklogItem = project.backlog.iter()
+        .find(|item| item.id == task_id)
+        .ok_or_else(|| anyhow::anyhow!("Task '{}' not found in backlog.", task_id))?;
 
     println!("📋 Task Details:");
     println!("   Title: {}", task.title);
-    println!("   Story: {}", task.story);
+    println!("   Story: {}", task.story); // Assuming BacklogItem has a story field
+    // ... print other task details as before ...
     println!("   Priority: {:?}", task.priority);
     println!("   Effort: {} points", task.effort);
-    println!("   Acceptance Criteria:");
-    for (i, criteria) in task.acceptance_criteria.iter().enumerate() {
-        println!("     {}. {}", i + 1, criteria);
+    if !task.acceptance_criteria.is_empty() {
+        println!("   Acceptance Criteria:");
+        for (i, criteria) in task.acceptance_criteria.iter().enumerate() {
+            println!("     {}. {}", i + 1, criteria);
+        }
     }
 
-    // Send to LLM for assistance with full project context
-    let llm_response = send_llm_assistance_request(task, project.llm(), &project)
+    println!("🔍 Preparing prompt and asking LLM for assistance...");
+
+    // 1. Load Prompt Template
+    let prompt_template_path = std::path::Path::new(".env-coach/prompts/task_assistant.md");
+    let prompt_template = match std::fs::read_to_string(prompt_template_path) {
+        Ok(template) => template,
+        Err(_) => {
+            println!("⚠️ Task assistant prompt not found at {:?}. Using default.", prompt_template_path);
+            Templates::default_task_assistant_prompt_content()
+        }
+    };
+
+    // 2. Format Prompt
+    // Determine primary language (this function needs to be accessible, e.g. from auto_update::code_gen or a shared util)
+    // For now, let's assume it's available via project or a new helper here.
+    // We'll use the one from auto_update::code_gen for consistency.
+    let primary_language = crate::auto_update::code_gen::get_primary_language(&project.meta);
+
+    let ac_string = task.acceptance_criteria.iter()
+        .map(|ac| format!("  - {}", ac))
+        .collect::<Vec<String>>().join("\n");
+
+    let mut filled_prompt = prompt_template;
+    filled_prompt = filled_prompt.replace("{{project_name}}", &project.meta.name);
+    filled_prompt = filled_prompt.replace("{{project_description}}", &project.meta.description);
+    filled_prompt = filled_prompt.replace("{{tech_stack}}", &project.meta.tech_stack.join(", "));
+    filled_prompt = filled_prompt.replace("{{primary_language}}", &primary_language);
+    filled_prompt = filled_prompt.replace("{{tags}}", &project.get_tags_display());
+    filled_prompt = filled_prompt.replace("{{task_id}}", &task.id);
+    filled_prompt = filled_prompt.replace("{{task_title}}", &task.title);
+    filled_prompt = filled_prompt.replace("{{task_story}}", &task.story);
+    filled_prompt = filled_prompt.replace("{{#each task_acceptance_criteria}}", ""); // Remove loop markers
+    filled_prompt = filled_prompt.replace("{{/each}}", "");
+    filled_prompt = filled_prompt.replace("  - {{this}}", &ac_string); // Replace the iterated part
+
+    let user_query = user_prompt_override.unwrap_or_else(|| "Provide general assistance and next steps for this task.".to_string());
+    filled_prompt = filled_prompt.replace("{{user_prompt}}", &user_query);
+
+    // 3. Send to LLM
+    let llm_response_str = ollama::send_generation_prompt(project.llm(), &filled_prompt)
         .await
-        .context("Failed to get LLM assistance")?;
+        .context("Failed to get LLM assistance for task")?;
 
-    println!("🤖 LLM Response:");
-    println!("{}", llm_response);
+    // 4. Process with AutoUpdater
+    // We print the raw response for now, AutoUpdater will handle parsing and actions.
+    println!("\n🤖 LLM Raw Response (JSON expected):");
+    println!("{}", llm_response_str);
 
-    // NEW: Auto-generate code files if LLM provides implementation
-    let mut updater = AutoUpdater::new(project);
-    updater.process_llm_response(&llm_response, UpdateContext::CodeGeneration(id.clone()))
-        .context("Failed to auto-generate code files")?;
+    let mut updater = AutoUpdater::new(project); // project is moved here
+    updater.process_llm_response(&llm_response_str, UpdateContext::CodeGeneration(task_id.clone()))
+        .context("Failed to process LLM suggestions or auto-update files")?;
+    // Note: `project` is consumed by AutoUpdater. If we need it afterwards, AutoUpdater must return it or operate on &mut.
+    // Current AutoUpdater::new takes ownership, and save is called internally.
 
-    println!("💡 Use the LLM suggestions to implement your solution");
-    println!("💡 When ready: env-coach complete-task {}", id);
+    println!("\n💡 Review the LLM suggestions and generated/modified files (if any).");
+    println!("💡 When ready to mark task complete: env-coach complete-task {}", task_id);
 
     Ok(())
 }
@@ -148,166 +192,9 @@ pub fn complete_task(id: String) -> Result<()> {
     Ok(())
 }
 
-async fn send_llm_assistance_request(
-    task: &crate::config::BacklogItem, 
-    llm_config: &FinalLlmConfig, // Changed LlmConfig to FinalLlmConfig
-    project: &Project
-) -> Result<String> {
-    let client = reqwest::Client::new();
-    
-    let acceptance_criteria_text = task.acceptance_criteria
-        .iter()
-        .enumerate()
-        .map(|(i, criteria)| format!("{}. {}", i + 1, criteria))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    // Get primary programming language
-    let primary_language = get_primary_language(&project.meta.tech_stack);
-    let language_specific_guidance = get_language_guidance(&primary_language);
-
-    let prompt = format!(
-        r#"You are a software engineering expert providing implementation guidance for a {primary_language} project.
-
-PROJECT CONTEXT:
-- Project: {project_name}
-- Description: {project_description}
-- Tech Stack: {tech_stack}
-- Primary Language: {primary_language}
-- Tags: {tags}
-
-TASK DETAILS:
-- Task: {task_title}
-- Story: {task_story}
-- Priority: {task_priority:?}
-- Effort: {task_effort} points
-
-ACCEPTANCE CRITERIA:
-{acceptance_criteria}
-
-Please provide implementation guidance specifically for {primary_language}:
-
-1. **Approach and Architecture** - How to structure this in {primary_language}
-2. **Dependencies/Crates** - Specific {primary_language} libraries/crates needed
-3. **Code Implementation** - Complete working {primary_language} code examples
-4. **Testing** - {primary_language} unit test examples
-5. **Best Practices** - {primary_language}-specific implementation tips
-
-{language_guidance}
-
-IMPORTANT: 
-- Provide ALL code examples in {primary_language}
-- Use proper {primary_language} syntax and conventions
-- Format code blocks as ```{code_block_lang}
-- Give complete, runnable examples that match the project structure"#,
-        primary_language = primary_language,
-        project_name = project.meta.name,
-        project_description = project.meta.description,
-        tech_stack = project.meta.tech_stack.join(", "),
-        tags = project.get_tags_display(),
-        task_title = task.title,
-        task_story = task.story,
-        task_priority = task.priority,
-        task_effort = task.effort,
-        acceptance_criteria = acceptance_criteria_text,
-        language_guidance = language_specific_guidance,
-        code_block_lang = get_code_block_language(&primary_language)
-    );
-
-    let request_body = serde_json::json!({
-        "model": llm_config.model,
-        "prompt": prompt,
-        "stream": false,
-        "options": {
-            "temperature": 0.3,
-            "top_p": 0.9
-        }
-    });
-
-    let response = client
-        .post(&format!("{}/api/generate", llm_config.base_url()))
-        .json(&request_body)
-        .timeout(std::time::Duration::from_millis(llm_config.timeout_ms))
-        .send()
-        .await
-        .context("Failed to send request to LLM")?;
-
-    if !response.status().is_success() {
-        anyhow::bail!(
-            "LLM request failed with status: {} - {}",
-            response.status(),
-            response.text().await.unwrap_or_default()
-        );
-    }
-
-    let response_json: Value = response
-        .json()
-        .await
-        .context("Failed to parse LLM response as JSON")?;
-
-    let llm_response = response_json
-        .get("response")
-        .and_then(|r| r.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Invalid LLM response format"))?;
-
-    Ok(llm_response.to_string())
-}
-
-/// Determine the primary programming language from tech stack
-fn get_primary_language(tech_stack: &[String]) -> String {
-    for tech in tech_stack {
-        match tech.as_str() {
-            "rust" => return "Rust".to_string(),
-            "nodejs" => return "JavaScript/Node.js".to_string(),
-            "python" => return "Python".to_string(),
-            "go" => return "Go".to_string(),
-            "java" => return "Java".to_string(),
-            _ => continue,
-        }
-    }
-    "Rust".to_string() // Default fallback
-}
-
-/// Get language-specific guidance
-fn get_language_guidance(language: &str) -> String {
-    match language {
-        "Rust" => r#"
-Focus on:
-- Ownership and borrowing principles
-- Error handling with Result<T, E> and proper error propagation
-- Using appropriate data structures (Vec, HashMap, etc.)
-- Implementing traits where appropriate
-- Writing idiomatic Rust code with proper lifetime management
-- Using Cargo.toml for dependencies"#.to_string(),
-        
-        "JavaScript/Node.js" => r#"
-Focus on:
-- Modern JavaScript/ES6+ features
-- Proper async/await usage
-- NPM package management
-- Error handling with try/catch
-- Modular code structure"#.to_string(),
-        
-        "Python" => r#"
-Focus on:
-- Pythonic code style and PEP 8 compliance
-- Proper exception handling
-- Using virtual environments and requirements.txt
-- Type hints where appropriate
-- Object-oriented or functional programming as suitable"#.to_string(),
-        
-        _ => "Follow language best practices and conventions.".to_string(),
-    }
-}
-
-/// Get the code block language identifier
-fn get_code_block_language(language: &str) -> String {
-    match language {
-        "Rust" => "rust".to_string(),
-        "JavaScript/Node.js" => "javascript".to_string(),
-        "Python" => "python".to_string(),
-        "Go" => "go".to_string(),
-        "Java" => "java".to_string(),
-        _ => "rust".to_string(), // Default to rust
-    }
-}
+// Old `send_llm_assistance_request` and its helpers (`get_primary_language`,
+// `get_language_guidance`, `get_code_block_language`) are removed.
+// The new `assist_task` directly loads the prompt template, formats it,
+// calls `ollama::send_generation_prompt`, and then passes the response
+// to `AutoUpdater`. The `get_primary_language` logic is now centralized
+// in `auto_update::code_gen`.

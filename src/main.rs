@@ -69,6 +69,9 @@ enum Commands {
     AssistTask {
         /// Task ID
         task_id: String,
+        /// Specific question or prompt for the LLM assistant
+        #[arg(short, long)]
+        prompt: Option<String>,
     },
     /// Complete a task
     CompleteTask {
@@ -123,8 +126,8 @@ async fn main() -> Result<()> {
         Commands::StartTask { task_id } => {
             scripts::tasks::start_task(task_id)?;
         }
-        Commands::AssistTask { task_id } => {
-            scripts::tasks::assist_task(task_id).await?;
+        Commands::AssistTask { task_id, prompt } => { // Added prompt
+            scripts::tasks::assist_task(task_id, prompt).await?; // Pass prompt
         }
         Commands::CompleteTask { task_id } => {
             scripts::tasks::complete_task(task_id)?;

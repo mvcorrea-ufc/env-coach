@@ -154,7 +154,13 @@ pub fn run(
             Templates::default_sprint_planner_prompt_content()
         ).context("Failed to create default sprint_planner.md prompt")?;
 
-        // TODO: Add other default prompts here in the future e.g. task_assistant.md, code_reviewer.md
+        Templates::create_default_prompt_if_missing(
+            &prompts_dir,
+            "task_assistant.md",
+            Templates::default_task_assistant_prompt_content()
+        ).context("Failed to create default task_assistant.md prompt")?;
+
+        // TODO: Add other default prompts here in the future e.g. code_reviewer.md
 
         println!("✅ Created .env-coach/ directory structure and default prompts.");
     }
