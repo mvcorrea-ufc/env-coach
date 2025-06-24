@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
             scripts::status::run().await?;
         }
         Commands::PlanSprint { goal, days } => {
-            scripts::sprint::plan(goal, days)?;
+            scripts::sprint::plan(goal, days).await?; // Added .await
         }
         Commands::StartSprint { sprint_id } => {
             scripts::sprint::start_sprint(sprint_id)?;

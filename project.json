@@ -2,7 +2,7 @@
   "meta": {
     "name": "Test Project",
     "description": "A test project",
-    "created": "2025-06-23T23:25:57.232726209Z",
+    "created": "2025-06-24T00:01:33.850940620Z",
     "tech_stack": [
       "rust",
       "git"
@@ -27,7 +27,7 @@
       "priority": "Medium",
       "effort": 3,
       "status": "Todo",
-      "created": "2025-06-23T23:25:57.232740359Z",
+      "created": "2025-06-24T00:01:33.850984791Z",
       "sprint": null,
       "dependencies": []
     }

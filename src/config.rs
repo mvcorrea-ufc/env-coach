@@ -165,7 +165,7 @@ pub struct Sprint {
     pub actual_velocity: u8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)] // Added PartialEq
 pub enum SprintStatus {
     Planning,
     Active,

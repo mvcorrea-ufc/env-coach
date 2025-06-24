@@ -150,7 +150,7 @@ env-coach show-sprint
 - `add-story --title <title> --description <desc>` - Manually add user story
 
 ### Sprint Management  
-- `plan-sprint --goal <goal> --days <days>` - Plan development sprint
+- `plan-sprint --goal <goal> --days <days>` - Plan development sprint (uses LLM to suggest stories based on goal and backlog).
 - `start-sprint <id>` - Activate a sprint
 - `show-sprint` - Show current sprint status
 - `list-stories` - List all user stories
@@ -368,10 +368,11 @@ Tested with:
 - `codellama:7b` (code-focused)
 
 ### Customizing Prompts
-Edit files in `.env-coach/prompts/` to customize LLM behavior:
-- `requirements_analyst.md` - Requirements processing
-- `code_reviewer.md` - Code review assistance  
-- `task_assistant.md` - Development assistance
+Edit files in `.env-coach/prompts/` to customize LLM behavior. These files are created with defaults when you run `env-coach init`:
+- `requirements_analyst.md` - Used by `add-requirement` to process natural language requirements into user stories.
+- `sprint_planner.md` - Used by `plan-sprint` to analyze the backlog and suggest stories for a sprint goal.
+- `code_reviewer.md` - (Planned) For code review assistance.
+- `task_assistant.md` - (Planned) Used by `assist-task` for development assistance.
 
 ## Development Phases
 

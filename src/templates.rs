@@ -252,4 +252,60 @@ Example of a single user story object:
         }
         Ok(())
     }
+
+    pub fn default_sprint_planner_prompt_content() -> String {
+        r#"You are an expert Agile Sprint Planner. Your task is to help select user stories from the project backlog that best fit the given sprint goal and constraints.
+
+**Sprint Goal:**
+{{sprint_goal}}
+
+{{#if sprint_duration_days}}
+**Sprint Duration:** {{sprint_duration_days}} days
+{{/if}}
+
+{{#if target_capacity_points}}
+**Target Capacity (Story Points):** {{target_capacity_points}}
+{{/if}}
+
+**Project Backlog (User Stories):**
+The following user stories are available in the backlog. Each item is listed with its ID, Title, Priority, and Effort (in story points).
+
+{{#each backlog_items}}
+- **ID:** {{this.id}}
+  - **Title:** {{this.title}}
+  {{#if this.story_summary}}
+  - **Summary:** {{this.story_summary}}
+  {{/if}}
+  - **Priority:** {{this.priority}}
+  - **Effort:** {{this.effort}} points
+{{/each}}
+
+**Instructions:**
+
+1.  **Analyze the Sprint Goal:** Understand the primary objective for this sprint.
+2.  **Review Backlog Items:** Evaluate each user story's relevance to the sprint goal.
+3.  **Consider Constraints:**
+    *   Prioritize higher priority items (Critical > High > Medium > Low).
+    *   If target capacity is provided, try to select stories whose total effort is close to this capacity without significantly exceeding it.
+    *   If sprint duration is provided, consider what can realistically be achieved.
+4.  **Selection:** Choose a set of user story IDs that form a cohesive and achievable plan for the sprint, directly contributing to the sprint goal.
+5.  **Output:** Respond with a JSON object containing a single key: `"suggested_story_ids"`. The value should be an array of strings, where each string is the ID of a suggested user story.
+    Optionally, you can include a `"reasoning"` field with a brief explanation for your selection.
+
+**Example Output Format:**
+```json
+{
+  "suggested_story_ids": [
+    "US-001",
+    "US-003",
+    "US-008"
+  ],
+  "reasoning": "Selected stories directly address the core aspects of the sprint goal 'Implement User Authentication'. US-001 is critical, and US-003 and US-008 are high-priority supporting features with a combined effort that fits the typical capacity."
+}
+```
+
+Return *only* the valid JSON object. Do not include any other text or explanations outside the JSON structure.
+If no stories seem appropriate or fit the capacity, return an empty array for `suggested_story_ids`.
+"#.to_string()
+    }
 }
