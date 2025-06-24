@@ -215,7 +215,12 @@ impl Project {
                 created: Utc::now(),
                 tech_stack,
                 tags,
-                llm: None, // Project-specific overrides are initially None
+                llm: Some(PartialLlmConfig { // Initialize with default LLM config
+                    host: Some(DEFAULT_LLM_HOST.to_string()),
+                    port: Some(DEFAULT_LLM_PORT),
+                    model: Some(DEFAULT_LLM_MODEL.to_string()),
+                    timeout_ms: Some(60000), // User suggested default
+                }),
                 prd: None, // Initialize prd as None
             },
             backlog: Vec::new(),
@@ -565,10 +570,17 @@ mod tests {
 
     #[test]
     fn test_project_new_uses_global_or_defaults() {
-        // Case 1: No global config
+        // Case 1: No global config - Project::new now sets a default Some(PartialLlmConfig)
         let project1 = Project::new("test1".to_string(), "desc1".to_string(), None);
-        assert_eq!(project1.resolved_llm_config.model, DEFAULT_LLM_MODEL);
-        assert_eq!(project1.meta.llm, None); // Project specific overrides are None initially
+        assert_eq!(project1.resolved_llm_config.model, DEFAULT_LLM_MODEL); // Resolved should still use defaults
+
+        let expected_default_meta_llm = Some(PartialLlmConfig {
+            host: Some(DEFAULT_LLM_HOST.to_string()),
+            port: Some(DEFAULT_LLM_PORT),
+            model: Some(DEFAULT_LLM_MODEL.to_string()),
+            timeout_ms: Some(60000),
+        });
+        assert_eq!(project1.meta.llm, expected_default_meta_llm);
 
         // Case 2: With global config
         let global_partial = PartialLlmConfig {

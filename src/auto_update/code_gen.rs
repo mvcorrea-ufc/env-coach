@@ -74,7 +74,7 @@ fn guess_filename_for_language(project_meta: &ProjectMeta, code: &str, language:
     }
 }
 
-fn extract_code_blocks(project_meta: &ProjectMeta, text: &str) -> Vec<(String, String)> {
+pub(crate) fn extract_code_blocks(project_meta: &ProjectMeta, text: &str) -> Vec<(String, String)> {
     let mut code_blocks = Vec::new();
     let lines: Vec<&str> = text.lines().collect();
     let mut i = 0;

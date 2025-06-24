@@ -186,21 +186,28 @@ impl AutoUpdater {
                     // or if only general_advice is present with code blocks.
                     // For now, let's rely on structured output.
                     println!("   (Skipping direct file modifications in this phase, focusing on Cargo.toml changes first).");
+                    // NOTE: Full implementation of applying SourceCode suggestions (create, replace, append)
+                    // with user confirmation will be handled in a subsequent development phase.
                 }
-                 if !general_advice.is_empty() && source_code_suggestions.is_empty() && cargo_deps_to_add.is_empty() {
-                     println!("\nℹ️ LLM provided general advice but no specific code or dependency changes were parsed for automation.");
-                     // Fallback to old raw code block extraction if only general advice was found,
-                     // as the advice might contain unformatted code blocks.
-                     println!("   Attempting fallback to raw code block extraction for any embedded code snippets...");
-                     code_gen::generate_code_files(&self.project, task_id, llm_response_str)?;
-                 }
 
+                // If, after processing structured suggestions, there were no cargo changes and no source code changes suggested,
+                // AND there was only general advice, it *might* indicate the LLM didn't use the JSON format well.
+                // However, we should NOT fall back to raw parsing if the JSON itself was valid.
+                // The old fallback for "only general advice" was problematic as it would try to parse the JSON string as raw code.
+                // If the JSON is valid and contains only general_advice, that's what we process.
+                // The fallback to `code_gen::generate_code_files` should *only* happen if `parse_assist_task_response` itself fails.
 
+                if cargo_deps_to_add.is_empty() && source_code_suggestions.is_empty() && !general_advice.is_empty() {
+                    println!("\nℹ️ LLM provided general advice. No direct file modifications or dependency changes were suggested in the structured response.");
+                }
+                if cargo_deps_to_add.is_empty() && source_code_suggestions.is_empty() && general_advice.is_empty() {
+                     println!("\nℹ️ LLM response parsed successfully but contained no actionable suggestions (dependencies, source code, or general advice).");
+                }
             }
             Err(e) => {
-                eprintln!("⚠️ Failed to parse structured LLM response for task {}: {}", task_id, e);
+                // This is the ONLY place where fallback to old raw code block extraction should occur.
+                eprintln!("⚠️ Failed to parse LLM response as structured JSON for task {}: {}", task_id, e);
                 eprintln!("   Falling back to raw code block extraction for task {}...", task_id);
-                // Fallback to the old generate_code_files if parsing the new structure fails
                 code_gen::generate_code_files(&self.project, task_id, llm_response_str)?;
             }
         }

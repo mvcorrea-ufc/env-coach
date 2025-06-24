@@ -66,29 +66,32 @@ All fields within `"llm"` are optional. If this file or any field is omitted, bu
 
 **Project-Specific Configuration (`project.json`):**
 
-When you run `env-coach init`, a `project.json` is created. You can add an `"llm"` object within the `"meta"` section to override global settings or defaults for this specific project.
-Example `project.json` snippet:
+When you run `env-coach init`, a `project.json` file is created. It will include a default LLM configuration block within the `"meta"` section. You can edit this block to specify a different model, host, port, or timeout for this particular project, overriding any global or built-in defaults.
+
+Example `project.json` snippet (what `env-coach init` might create):
 ```json
 {
   "meta": {
-    "name": "my-rust-project",
-    "description": "...",
-    "created": "...",
-    "tech_stack": ["rust"],
+    "name": "my-new-project",
+    "description": "AI-assisted development project for my-new-project",
+    "created": "YYYY-MM-DDTHH:MM:SSZ", // Actual creation timestamp
+    "tech_stack": ["rust"], // Example, detected or default
     "tags": [],
     // Optional PRD (Product Requirements Document) section
+    // Populated if --problem or --metric flags are used with `env-coach init`
     "prd": {
-      "problem": "Users need a way to efficiently manage their book collections and track reading progress.",
+      "problem": "The core problem this project aims to solve.",
       "success_metrics": [
-        "Reduce time to add a new book by 50%",
-        "Increase frequency of users updating reading status by 30%"
+        "A measurable success metric.",
+        "Another key performance indicator."
       ]
     },
-    // Project-specific LLM overrides
+    // Default LLM configuration written by `env-coach init`
     "llm": {
-      "model": "deepseek-coder:33b", // Override global/default model for this project
-      "timeout_ms": 120000          // Custom timeout for this project
-      // Host and port might be inherited from global or default if not specified here
+      "host": "localhost",
+      "port": 11434,
+      "model": "deepseek-coder:6.7b",
+      "timeout_ms": 60000
     }
   },
   "backlog": [

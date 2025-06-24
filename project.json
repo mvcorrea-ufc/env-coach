@@ -2,7 +2,7 @@
   "meta": {
     "name": "Test Project",
     "description": "A test project",
-    "created": "2025-06-24T04:02:47.240563732Z",
+    "created": "2025-06-24T18:18:21.060622460Z",
     "tech_stack": [
       "rust",
       "git"
@@ -11,27 +11,14 @@
       "systems",
       "env-coach"
     ],
-    "llm": null
-  },
-  "backlog": [
-    {
-      "id": "US-001",
-      "item_type": "UserStory",
-      "title": "Generated Title for Story near line 1",
-      "story": "Some text. As a user, I want a feature. More text.",
-      "acceptance_criteria": [
-        "Define specific acceptance criteria",
-        "Implement the feature",
-        "Write tests and documentation"
-      ],
-      "priority": "Medium",
-      "effort": 3,
-      "status": "Todo",
-      "created": "2025-06-24T04:02:47.240601659Z",
-      "sprint": null,
-      "dependencies": []
+    "llm": {
+      "model": "deepseek-coder:6.7b",
+      "timeout_ms": 60000,
+      "host": "localhost",
+      "port": 11434
     }
-  ],
+  },
+  "backlog": [],
   "sprints": [],
   "current_sprint": null
 }

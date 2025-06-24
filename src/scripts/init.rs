@@ -407,4 +407,32 @@ mod tests {
         fs::remove_file(desc_file_path).unwrap();
         std::env::set_current_dir(original_dir).unwrap();
     }
+
+    #[test]
+    fn test_init_creates_project_with_default_llm_config() {
+        let temp_dir = tempdir().unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let project_name = Some("DefaultLLMProject".to_string());
+        run(project_name.clone(), None, None, vec![], None).unwrap();
+
+        let project_json_path = temp_dir.path().join("project.json");
+        let project_content_str = fs::read_to_string(&project_json_path)
+            .expect("Test: Failed to read project.json after init run");
+        let loaded_project: Project = serde_json::from_str(&project_content_str)
+            .expect("Test: Failed to parse project.json content");
+
+        assert_eq!(loaded_project.meta.name, project_name.unwrap());
+        assert!(loaded_project.meta.llm.is_some(), "meta.llm should be Some");
+
+        let llm_config = loaded_project.meta.llm.unwrap();
+        assert_eq!(llm_config.host.as_deref(), Some(crate::config::DEFAULT_LLM_HOST));
+        assert_eq!(llm_config.port, Some(crate::config::DEFAULT_LLM_PORT));
+        assert_eq!(llm_config.model.as_deref(), Some(crate::config::DEFAULT_LLM_MODEL));
+        assert_eq!(llm_config.timeout_ms, Some(60000)); // User-specified default for new projects
+
+        fs::remove_file(project_json_path).unwrap();
+        std::env::set_current_dir(original_dir).unwrap();
+    }
 }
