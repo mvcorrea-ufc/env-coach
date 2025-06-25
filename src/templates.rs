@@ -334,7 +334,19 @@ Your goal is to provide actionable suggestions, including code, dependency updat
 
 **Instructions:**
 
-Provide your assistance as a single JSON object. The root object should have a key "suggestions" which is an array of suggestion objects. Each suggestion object must have a "type" field and other fields relevant to its type.
+**IMPORTANT: Your entire response MUST be a single, valid JSON object. Do not include any text or markdown before or after the JSON structure (i.e., no introductory phrases like "Here is the JSON..." or closing remarks).**
+
+The root JSON object must have a key named `"suggestions"`, which is an array of suggestion objects. Each suggestion object in this array must have a field named `"type"` that determines its structure, and other fields relevant to that type.
+
+**JSON String Content Rules:**
+-   All string values within the JSON must be properly escaped for JSON. This means:
+    -   Double quotes `"` must be escaped as `\\\"`.
+    -   Backslashes `\\` must be escaped as `\\\\`.
+    -   Newlines must be escaped as `\\n`.
+    -   Tabs must be escaped as `\\t`.
+    -   Other control characters (ASCII 0-31) must be Unicode escaped (e.g., `\\u001B` for ESC) if they absolutely must be present, but preferably avoid them in code content unless strictly necessary for a specific purpose (like terminal color codes that will be carefully handled by the client).
+-   Ensure all JSON keys are exactly as specified in the formats below (e.g., `"target_file"`, not any other variation).
+-   Do NOT include any LLM-internal placeholders or unresolved tokens (like `<｜...｜>`) in the final JSON output. These must be resolved or removed.
 
 **Suggestion Types and Formats:**
 
