@@ -73,6 +73,20 @@ enum Commands {
         #[arg(short, long)]
         prompt: Option<String>,
     },
+    /// Execute a task with LLM assistance, potentially applying changes automatically
+    ExecuteTask {
+        /// Task ID to execute
+        task_id: String,
+        /// Specific question or prompt for the LLM assistant for this execution
+        #[arg(long)]
+        user_prompt: Option<String>,
+        /// Automatically approve suggested Cargo.toml dependency changes
+        #[arg(long)]
+        auto_approve_deps: bool,
+        /// Automatically approve suggested source code file changes (use with caution)
+        #[arg(long)]
+        auto_approve_code: bool,
+    },
     /// Complete a task
     CompleteTask {
         /// Task ID
@@ -126,8 +140,11 @@ async fn main() -> Result<()> {
         Commands::StartTask { task_id } => {
             scripts::tasks::start_task(task_id)?;
         }
-        Commands::AssistTask { task_id, prompt } => { // Added prompt
-            scripts::tasks::assist_task(task_id, prompt).await?; // Pass prompt
+        Commands::AssistTask { task_id, prompt } => {
+            scripts::tasks::assist_task(task_id, prompt).await?;
+        }
+        Commands::ExecuteTask { task_id, user_prompt, auto_approve_deps, auto_approve_code } => {
+            scripts::tasks::execute_task(task_id, user_prompt, auto_approve_deps, auto_approve_code).await?;
         }
         Commands::CompleteTask { task_id } => {
             scripts::tasks::complete_task(task_id)?;

@@ -22,7 +22,8 @@ pub async fn process_requirement(requirement: String) -> Result<()> {
     
     // NEW: Auto-update project.json instead of manual edit message
     let mut updater = AutoUpdater::new(project);
-    updater.process_llm_response(&llm_response, UpdateContext::RequirementAnalysis)
+    // Pass default false for auto_approve flags as this context doesn't use them
+    updater.process_llm_response(&llm_response, UpdateContext::RequirementAnalysis, false, false)
         .context("Failed to auto-update project files")?;
     
     println!("✅ Requirement processed and project.json auto-updated!");

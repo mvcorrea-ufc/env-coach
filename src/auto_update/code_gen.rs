@@ -1,6 +1,7 @@
 // src/auto_update/code_gen.rs
 use std::fs;
 use std::path::Path;
+use anyhow::{Context as AnyhowContext, Result}; // Import Context for .context() method
 use crate::config::{Project, ProjectMeta}; // ProjectMeta for get_primary_language
 
 // --- Pure helper functions ---
@@ -117,5 +118,172 @@ pub fn generate_code_files(project: &Project, task_id: &str, llm_response: &str)
             println!("💡 To regenerate, delete the file and run assist-task again");
         }
     }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use std::fs;
+    // use std::path::Path; // Path is used via temp_dir.path() or as &Path in function args
+
+    #[test]
+    fn test_create_file_success() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("new_file.txt");
+        let content = "Hello, world!";
+
+        create_file(&file_path, content)?;
+
+        assert!(file_path.exists());
+        assert_eq!(fs::read_to_string(&file_path)?, content);
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_file_creates_parent_dirs() -> Result<()> {
+        let dir = tempdir()?;
+        let nested_path = dir.path().join("parent").join("child").join("new_file.txt");
+        let content = "Nested content";
+
+        create_file(&nested_path, content)?;
+
+        assert!(nested_path.exists());
+        assert_eq!(fs::read_to_string(&nested_path)?, content);
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_file_already_exists_fails() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("existing_file.txt");
+        fs::write(&file_path, "initial content")?; // Create the file first
+
+        let result = create_file(&file_path, "new content");
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(&file_path)?, "initial content"); // Ensure not overwritten
+        Ok(())
+    }
+
+    #[test]
+    fn test_replace_file_content_success() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("to_replace.txt");
+        fs::write(&file_path, "old content")?;
+        let new_content = "completely new content";
+
+        replace_file_content(&file_path, new_content)?;
+        assert_eq!(fs::read_to_string(&file_path)?, new_content);
+        Ok(())
+    }
+
+    #[test]
+    fn test_replace_file_content_not_exists_fails() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("non_existent.txt");
+        let result = replace_file_content(&file_path, "content");
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_append_to_file_success_existing() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("append_to_me.txt");
+        fs::write(&file_path, "Line 1\n")?;
+        let content_to_append = "Line 2";
+
+        append_to_file(&file_path, content_to_append)?;
+        let expected_content = "Line 1\nLine 2\n"; // append_to_file adds a newline
+        assert_eq!(fs::read_to_string(&file_path)?, expected_content);
+        Ok(())
+    }
+
+    #[test]
+    fn test_append_to_file_creates_new() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("newly_created_for_append.txt");
+        let content_to_append = "First line";
+
+        append_to_file(&file_path, content_to_append)?;
+        let expected_content = "First line\n";
+        assert!(file_path.exists());
+        assert_eq!(fs::read_to_string(&file_path)?, expected_content);
+        Ok(())
+    }
+     #[test]
+    fn test_append_to_file_creates_parent_dirs() -> Result<()> {
+        let dir = tempdir()?;
+        let nested_path = dir.path().join("parent").join("child").join("append_file.txt");
+        let content = "Nested append";
+
+        append_to_file(&nested_path, content)?;
+
+        assert!(nested_path.exists());
+        let expected_content = "Nested append\n";
+        assert_eq!(fs::read_to_string(&nested_path)?, expected_content);
+        Ok(())
+    }
+}
+
+// --- Basic Source Code File Operations ---
+
+/// Creates a new file with the given content.
+/// Parent directories will be created if they don't exist.
+/// Fails if the file already exists.
+pub fn create_file(file_path: &Path, content: &str) -> anyhow::Result<()> {
+    if file_path.exists() {
+        return Err(anyhow::anyhow!("File already exists at path: {:?}", file_path));
+    }
+    if let Some(parent_dir) = file_path.parent() {
+        fs::create_dir_all(parent_dir)
+            .with_context(|| format!("Failed to create parent directories for {:?}", file_path))?;
+    }
+    fs::write(file_path, content)
+        .with_context(|| format!("Failed to write new file to {:?}", file_path))?;
+    println!("✅ Created file: {:?}", file_path);
+    Ok(())
+}
+
+/// Replaces the entire content of an existing file.
+/// Fails if the file does not exist.
+pub fn replace_file_content(file_path: &Path, new_content: &str) -> anyhow::Result<()> {
+    if !file_path.exists() {
+        return Err(anyhow::anyhow!("File not found for replacement at path: {:?}", file_path));
+    }
+    // Ensure parent directory exists (though it should if file exists, good practice)
+    if let Some(parent_dir) = file_path.parent() {
+         if !parent_dir.exists() { // Should not happen if file_path.exists() is true unless it's root
+            fs::create_dir_all(parent_dir)
+                .with_context(|| format!("Failed to create parent directories for {:?}", file_path))?;
+        }
+    }
+    fs::write(file_path, new_content)
+        .with_context(|| format!("Failed to write (replace) file content to {:?}", file_path))?;
+    println!("🔄 Replaced content of file: {:?}", file_path);
+    Ok(())
+}
+
+/// Appends content to an existing file. Creates the file if it does not exist.
+/// Parent directories will be created if they don't exist.
+pub fn append_to_file(file_path: &Path, content_to_append: &str) -> anyhow::Result<()> {
+    if let Some(parent_dir) = file_path.parent() {
+        fs::create_dir_all(parent_dir)
+            .with_context(|| format!("Failed to create parent directories for {:?}", file_path))?;
+    }
+    let mut file = fs::OpenOptions::new()
+        .create(true) // Create if it doesn't exist
+        .append(true) // Append if it does
+        .open(file_path)
+        .with_context(|| format!("Failed to open or create file for appending at {:?}", file_path))?;
+
+    use std::io::Write;
+    file.write_all(content_to_append.as_bytes())
+        .with_context(|| format!("Failed to append content to file {:?}", file_path))?;
+    file.write_all(b"\n") // Ensure a newline after appended content, if desired
+        .with_context(|| format!("Failed to append newline to file {:?}", file_path))?;
+
+    println!("📝 Appended content to file: {:?}", file_path);
     Ok(())
 }

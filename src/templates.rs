@@ -359,15 +359,15 @@ The root JSON object must have a key named `"suggestions"`, which is an array of
     -   `type`: "source_code"
     -   `target_file`: String. The full suggested path for the file from the project root (e.g., "src/main.rs", "src/module/new_feature.rs").
     -   `action`: String. One of:
-        -   `create`: Create a new file with the provided content. Should only be used if the file doesn't exist.
-        -   `replace`: Replace the entire content of an existing file. Use with caution.
-        -   `append_to_file`: Add the content to the end of an existing file.
-        -   `replace_function`: Replace an entire existing function. Requires `function_name`.
-        -   `append_to_function`: Add content inside an existing function. Requires `function_name`. (Less common, use carefully).
-        -   `add_import`: Add an import statement. Requires `import_statement`.
-    -   `content` (optional for some actions like `add_import`): String. The actual source code or text to use.
+        -   `create`: Create a new file. **The `content` field MUST contain the complete and final content for this new file.**
+        -   `replace`: Replace the entire content of an existing file. **The `content` field MUST contain the complete and final new content for this file.** Use with caution.
+        -   `append_to_file`: Add the provided `content` to the end of an existing file.
+        -   `replace_function`: (Advanced) Replace an entire existing function. Requires `function_name` and the `content` should be the new function body.
+        -   `append_to_function`: (Advanced) Add content inside an existing function. Requires `function_name` and `content` is the code to append.
+        -   `add_import`: Add an import statement. Requires `import_statement` field to be populated with the full import line. `content` field is typically not needed for this action.
+    -   `content`: String. The actual source code or text to use. **For `create` and `replace` actions, this MUST be the complete file content.** For `append_to_file`, this is the content to append. For function modifications, it's the new function body or lines to append.
     -   `function_name` (optional): String. The name of the target function for actions like `replace_function` or `append_to_function`.
-    -   `import_statement` (optional): String. The full import line (e.g., "use crate::my_module::MyStruct;").
+    -   `import_statement` (optional): String. The full import line (e.g., "use crate::my_module::MyStruct;") for the `add_import` action.
     -   `notes` (optional): Brief explanation about this code or modification.
 
 3.  **`general_advice`**: For textual explanations, architectural suggestions, best practices, or steps the user should take manually.

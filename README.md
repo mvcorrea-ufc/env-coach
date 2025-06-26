@@ -163,9 +163,16 @@ env-coach show-sprint
 - `list-stories` - List all user stories
 
 ### Development Workflow
-- `start-task <id>` - Begin working on a task
-- `assist-task <id> [--prompt <user_query>]` - Get LLM assistance with implementation. The LLM will provide structured suggestions (e.g., for code changes, `Cargo.toml` dependencies, or general advice) based on the task details and your optional query. `env-coach` can automatically add suggested dependencies to `Cargo.toml` after your confirmation.
-- `complete-task <id>` - Mark task complete and update metrics
+- `start-task <id>` - Begin working on a task, marking it as 'InProgress'.
+- `assist-task <id> [--prompt <user_query>]` - Get LLM assistance. The LLM provides structured suggestions (JSON) for code, dependencies, etc. `env-coach` will process these:
+    - Cargo dependencies can be automatically added (with user confirmation).
+    - Source code suggestions (create, replace, append) are presented for user review and confirmation before `env-coach` applies them to basic file operations. More complex code changes (e.g., modifying specific functions) are currently logged for manual application.
+    - This command is for getting suggestions and potentially applying some less complex changes with review.
+- `execute-task <task_id> [--user-prompt <user_query>] [--auto-approve-deps] [--auto-approve-code]` - A more automated version of `assist-task`. It fetches LLM suggestions and can apply them with less interaction if auto-approve flags are used.
+    - `--auto-approve-deps`: Skips confirmation for `Cargo.toml` changes.
+    - `--auto-approve-code`: Skips confirmation for source code file changes (create, replace, append). Use with caution.
+    - (Future: This command may also run tests and auto-complete tasks).
+- `complete-task <id>` - Mark task complete and update metrics.
 
 ### LLM Interaction
 - `llm-cycle --prompt <text>` - Send custom prompt to LLM
@@ -273,8 +280,11 @@ This section provides a few common scenarios demonstrating how `env-coach` can b
 4.  **Develop Task by Task:**
     ```bash
     env-coach start-task <task_id_for_pdf_logic>
+    # Option 1: Get assistance and apply changes interactively
     env-coach assist-task <task_id_for_pdf_logic> --prompt "Best Rust crates for PDF generation? Example for simple PDF."
-    # User implements code...
+    # Option 2: Try to execute with more automation (use auto-approve flags with caution)
+    # env-coach execute-task <task_id_for_pdf_logic> --user-prompt "Best Rust crates for PDF generation? Example for simple PDF." [--auto-approve-code]
+    # User reviews any applied changes and manually implements remaining parts...
     env-coach complete-task <task_id_for_pdf_logic>
     ```
 
@@ -309,11 +319,14 @@ This section provides a few common scenarios demonstrating how `env-coach` can b
     env-coach start-task <bug_task_id>
     ```
 
-4.  **Get LLM Assistance:**
+4.  **Get LLM Assistance & Apply Changes:**
     ```bash
+    # Option 1: Interactive assistance
     env-coach assist-task <bug_task_id> --prompt "NPE at UserProfileService.java:73 with empty bio. Code: [snippet]. How to fix?"
+    # Option 2: More automated execution (use auto-approve flags with caution)
+    # env-coach execute-task <bug_task_id> --user-prompt "NPE at UserProfileService.java:73 with empty bio. Code: [snippet]. How to fix?" [--auto-approve-code]
     ```
-    LLM suggests code changes.
+    LLM suggests code changes. `env-coach` helps apply them (e.g., Cargo.toml, basic file ops) with your review.
 
 5.  **Implement & Test Fix:**
     Apply the fix and write unit/integration tests.
